@@ -1,0 +1,5 @@
+.vscode
+.fnb_bot
+sql/
+bot/test.py
+bot/.env
