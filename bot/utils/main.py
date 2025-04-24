@@ -13,6 +13,7 @@ from bot.api.customer_routers import customer_router
 from bot.api.policy_type_routers import policy_type_router
 from bot.api.policy_routers import policy_router
 from bot.api.policy_detail_routers import policy_detail_router
+from bot.api.chatbot_router import chatbot_router
 
 from bot.core.graph import build_graph
 from bot.core.state import BookingState
@@ -44,34 +45,8 @@ app.include_router(customer_router, prefix="/api/v1", tags=["customer routers"])
 app.include_router(policy_type_router, prefix="/api/v1", tags=["policy type routers"])
 app.include_router(policy_router, prefix="/api/v1", tags=["policy routers"])
 app.include_router(policy_detail_router, prefix="/api/v1", tags=["policy detail routers"])
+app.include_router(chatbot_router, prefix="/api/v1", tags=["chatbot routers"])
 
 @app.get("/")
 async def root():
     return {"message": "Welcome to Restaurant Booking API"}
-
-@app.post("/api/v1/chat/", tags=["chat"])
-async def chat_with_bot(user_input: str):
-    """Xử lý yêu cầu từ người dùng thông qua LangGraph."""
-    state = BookingState(
-        user_input=user_input,
-        greeting_done=False,
-        intro_done=False,
-        table_id=None,
-        customer_id=None,
-        branch_id=1,  # Giả định branch_id mặc định
-        reservation_date=None,
-        reservation_time=None,
-        party_size=None,
-        customer_name=None,
-        customer_phone=None,
-        customer_email=None,
-        booking_confirmed=False,
-        messages=[]
-    )
-
-    for event in graph.stream(state):
-        if "messages" in event:
-            latest_message = event["messages"][-1]["content"]
-            return {"response": latest_message}
-    
-    return {"response": "Có lỗi xảy ra, vui lòng thử lại."}

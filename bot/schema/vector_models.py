@@ -4,7 +4,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from pgvector.sqlalchemy import Vector  # Dùng để lưu vector trong PostgreSQL
 from bot.utils.database import Base  # Dùng Base từ database.py
-from bot.core.models import Restaurant, ServiceType, Policy, PolicyDetail  # Import các model từ schema public
+from bot.schema.models import Restaurant, ServiceType, Policy, PolicyDetail  
 
 # Định nghĩa metadata cho schema vector_schema
 metadata = MetaData(schema='vector_schema')

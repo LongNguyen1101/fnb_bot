@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from bot.utils.database import get_db
 from bot.services.crud_public import PublicCRUD
-from typing import Dict, Any
+from typing import Dict, Any, List
 from pydantic import BaseModel, field_validator
 from datetime import date, time, datetime
 
@@ -165,6 +165,34 @@ async def get_reservation(
         "confirmed_at": reservation.confirmed_at,
         "reminder_sent": reservation.reminder_sent
     }
+    
+@reservation_router.get("/get_reservation_by_customer_id/{customer_id}", 
+                        response_model=List[ReservationGetResponse],
+                        summary="Get a reservation by ID")
+async def get_reservation(
+    customer_id: int,
+    public_crud: PublicCRUD = Depends(get_public_crud)
+):
+    """Retrieve details of a specific reservation by its ID."""
+    list_reservation = public_crud.get_reservation_by_customer_id(customer_id)
+    if not list_reservation:
+        raise HTTPException(status_code=404, detail="Reservation not found")
+    return [
+        {
+            "reservation_id": reservation.reservation_id,
+            "table_id": reservation.table_id,
+            "customer_id": reservation.customer_id,
+            "branch_id": reservation.branch_id,
+            "policy_id": reservation.policy_id,
+            "reservation_date": reservation.reservation_date,
+            "reservation_time": reservation.reservation_time,
+            "party_size": reservation.party_size,
+            "status": reservation.status,
+            "created_at": reservation.created_at,
+            "confirmed_at": reservation.confirmed_at,
+            "reminder_sent": reservation.reminder_sent
+        } for reservation in list_reservation
+    ]
 
 @reservation_router.put("/update_reservation/{reservation_id}", 
                         response_model=ReservationResponse,

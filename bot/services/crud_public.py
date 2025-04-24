@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 from bot.schema.models import (Restaurant, RestaurantBranch, ServiceType, Table, TableStatus, 
                              Reservation, ReservationLog, Customer, ReservationHistory, 
                              Payment, WaitingList, NoShowLog, PolicyType, Policy, PolicyDetail)
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
+from sqlalchemy import desc, asc
 
 # CRUD cho schema public
 class PublicCRUD:
@@ -61,6 +62,13 @@ class PublicCRUD:
     
     def get_branches_by_restaurant_id(self, restaurant_id: int) -> Optional[RestaurantBranch]:
         return self.db.query(RestaurantBranch).filter(RestaurantBranch.restaurant_id == restaurant_id).all()
+    
+    def get_branches_by_ids(self, branch_ids: List[int]) -> List[RestaurantBranch]:
+        return (
+            self.db.query(RestaurantBranch)
+            .filter(RestaurantBranch.branch_id.in_(branch_ids))
+            .all()
+        )
 
     def update_restaurant_branches(self, branch_id: int, data: Dict[str, Any]) -> Optional[RestaurantBranch]:
         restaurant_branches = self.get_restaurant_branches(branch_id)
@@ -145,6 +153,16 @@ class PublicCRUD:
             return True
         return False
     
+    def get_available_tables(self, branch_id: int) -> Optional[List[Table]]:
+        return (
+            self.db.query(Table)
+            .join(TableStatus, Table.table_id == TableStatus.table_id)
+            .filter(TableStatus.status == "available")
+            .filter(Table.branch_id == branch_id)
+            .order_by(asc(Table.capacity))
+            .all()
+        )
+    
     # Table status CRUD
     def create_table_status(self, table_id: int, status: str) -> Table:
         table_stauts = TableStatus(
@@ -158,9 +176,21 @@ class PublicCRUD:
 
     def get_table_status(self, status_id: int) -> Optional[TableStatus]:
         return self.db.query(TableStatus).filter(TableStatus.status_id == status_id).first()
+    
+    def get_table_status_by_table_id(self, table_id: int) -> Optional[TableStatus]:
+        return self.db.query(TableStatus).filter(TableStatus.table_id == table_id).first()
 
-    def update_table_status(self, status_id: int, data: Dict[str, Any]) -> Optional[Table]:
+    def update_table_status(self, status_id: int, data: Dict[str, Any]) -> Optional[TableStatus]:
         table_status = self.get_table_status(status_id)
+        if table_status:
+            for key, value in data.items():
+                setattr(table_status, key, value)
+            self.db.commit()
+            self.db.refresh(table_status)
+        return table_status
+    
+    def update_table_status_by_table_id(self, table_id: int, data: Dict[str, Any]) -> Optional[TableStatus]:
+        table_status = self.get_table_status_by_table_id(table_id)
         if table_status:
             for key, value in data.items():
                 setattr(table_status, key, value)
@@ -181,8 +211,8 @@ class PublicCRUD:
                          reservation_date: str, reservation_time: str, party_size: int, 
                          status: str = "pending") -> Reservation:
         reservation = Reservation(
-            table_id=table_id, 
-            customer_id=customer_id, 
+            table_id=table_id,
+            customer_id=customer_id,
             branch_id=branch_id,
             policy_id=policy_id,
             reservation_date=reservation_date, 
@@ -197,6 +227,21 @@ class PublicCRUD:
 
     def get_reservation(self, reservation_id: int) -> Optional[Reservation]:
         return self.db.query(Reservation).filter(Reservation.reservation_id == reservation_id).first()
+    
+    def get_reservation_by_customer_id(self, customer_id: int) -> Optional[List[Reservation]]:
+        return self.db.query(Reservation).filter(Reservation.customer_id == customer_id).all()
+    
+    def get_confirmed_reservations_by_customer(self, customer_id: int) -> Optional[List[Reservation]]:
+        return (
+            self.db.query(Reservation)
+            .join(ReservationHistory, Reservation.reservation_id == ReservationHistory.reservation_id)
+            .filter(
+                ReservationHistory.status == "confirmed",
+                Reservation.customer_id == customer_id
+            )
+            .order_by(Reservation.reservation_date.desc(), Reservation.reservation_time.desc())
+            .all()
+        )
 
     def update_reservation(self, reservation_id: int, data: Dict[str, Any]) -> Optional[Reservation]:
         reservation = self.get_reservation(reservation_id)
@@ -229,9 +274,22 @@ class PublicCRUD:
 
     def get_reservation_log(self, log_id: int) -> Optional[ReservationLog]:
         return self.db.query(Reservation).filter(ReservationLog.log_id == log_id).first()
+    
+    def get_reservation_log_by_reservation_id(self, reservation_id: int) -> Optional[ReservationLog]:
+        return self.db.query(ReservationLog).filter(ReservationLog.reservation_id == reservation_id).first()
 
     def update_reservation_log(self, log_id: int, data: Dict[str, Any]) -> Optional[ReservationLog]:
         reservation_log = self.get_reservation_log(log_id)
+        if reservation_log:
+            for key, value in data.items():
+                setattr(reservation_log, key, value)
+            self.db.commit()
+            self.db.refresh(reservation_log)
+        return reservation_log
+    
+    def update_reservation_log_by_reservation_id(self, reservation_id: int, 
+                                                 data: Dict[str, Any]) -> Optional[ReservationLog]:
+        reservation_log = self.get_reservation_log_by_reservation_id(reservation_id)
         if reservation_log:
             for key, value in data.items():
                 setattr(reservation_log, key, value)
@@ -261,6 +319,9 @@ class PublicCRUD:
 
     def get_customer(self, customer_id: int) -> Optional[Customer]:
         return self.db.query(Customer).filter(Customer.customer_id == customer_id).first()
+    
+    def get_customer_by_phone_number(self, phone_number: str) -> Optional[Customer]:
+        return self.db.query(Customer).filter(Customer.phone_number == phone_number).first()
 
     def update_customer(self, customer_id: int, data: Dict[str, Any]) -> Optional[Customer]:
         customer = self.get_customer(customer_id)
@@ -295,9 +356,22 @@ class PublicCRUD:
 
     def get_reservation_history(self, history_id: int) -> Optional[ReservationHistory]:
         return self.db.query(ReservationHistory).filter(ReservationHistory.history_id == history_id).first()
+    
+    def get_reservation_history_by_reservation_id(self, reservation_id: int) -> Optional[ReservationHistory]:
+        return self.db.query(ReservationHistory).filter(ReservationHistory.reservation_id == reservation_id).first()
 
     def update_reservation_history(self, history_id: int, data: Dict[str, Any]) -> Optional[ReservationHistory]:
         reservation_history = self.get_reservation_history(history_id)
+        if reservation_history:
+            for key, value in data.items():
+                setattr(reservation_history, key, value)
+            self.db.commit()
+            self.db.refresh(reservation_history)
+        return reservation_history
+    
+    def update_reservation_history_by_reservation_id(self, reservation_id: int, 
+                                                     data: Dict[str, Any]) -> Optional[ReservationHistory]:
+        reservation_history = self.get_reservation_history_by_reservation_id(reservation_id)
         if reservation_history:
             for key, value in data.items():
                 setattr(reservation_history, key, value)
@@ -491,6 +565,9 @@ class PublicCRUD:
 
     def get_policy_details(self, detail_id: int) -> Optional[PolicyDetail]:
         return self.db.query(PolicyDetail).filter(PolicyDetail.detail_id == detail_id).first()
+    
+    def get_policy_details_by_policy_id(self, policy_id: int) -> Optional[PolicyDetail]:
+        return self.db.query(PolicyDetail).filter(PolicyDetail.policy_id == policy_id).first()
 
     def update_policy_details(self, detail_id: int, data: Dict[str, Any]) -> Optional[PolicyDetail]:
         policy_details = self.get_policy_details(detail_id)
