@@ -6,6 +6,7 @@ from bot.schema.models import Table, Customer, Reservation
 from bot.core.state import BookingState
 from fastapi import Depends
 from typing import List, Optional, Dict, Any
+from sqlalchemy.exc import SQLAlchemyError
 
 from dotenv import load_dotenv
 import os
@@ -13,12 +14,6 @@ import re
 from google import genai
 
 load_dotenv()
-
-# def get_public_crud(db: Session = Depends(get_db)):
-#     return PublicCRUD(db)
-
-# def get_vector_crud(db: Session = Depends(get_db)):
-#     return VectorCRUD(db)
 
 client = genai.Client()
 MODEL_NAME = os.getenv('MODEL_NAME')
@@ -40,40 +35,48 @@ def get_vector_crud():
         db.close()
 
 def fetch_restaurant_info(state: BookingState, public_crud: PublicCRUD = next(get_public_crud())) -> BookingState:
-    restaurant_id = state.get('restaurant_id', 1)
-    restaurant_info = public_crud.get_restaurant(restaurant_id=restaurant_id)
-    
-    if restaurant_info:
-        state["restaurant_info"] = {
-            "name": restaurant_info.name,
-            "description": restaurant_info.description
-        }
-    else:
-        state["restaurant_info"] = {}
-    return state
+    try:
+        restaurant_id = state.get('restaurant_id', 1)
+        restaurant_info = public_crud.get_restaurant(restaurant_id=restaurant_id)
+        
+        if restaurant_info:
+            state["restaurant_info"] = {
+                "name": restaurant_info.name,
+                "description": restaurant_info.description
+            }
+        else:
+            state["restaurant_info"] = {}
+        return state
+    except SQLAlchemyError as e:
+        public_crud.db.rollback()
+        raise
 
 def fetch_restaurant_branches(state: BookingState, public_crud: PublicCRUD = next(get_public_crud())) -> BookingState:
-    restaurant_id = state.get('restaurant_id', 1)
-    branches = public_crud.get_branches_by_restaurant_id(restaurant_id=restaurant_id)
-    
-    if branches:
-        state["restaurant_branches"] = [{
+    try:
+        restaurant_id = state.get('restaurant_id', 1)
+        branches = public_crud.get_branches_by_restaurant_id(restaurant_id=restaurant_id)
+        
+        if branches:
+            state["restaurant_branches"] = [{
                 'branch_id': branch.branch_id,
                 'address': branch.address,
                 'opening_time': branch.opening_time,
                 'closing_time': branch.closing_time,
                 'max_capacity': branch.max_capacity
             } for branch in branches]
-    else:
-        state["restaurant_branches"] = []
-    return state
+        else:
+            state["restaurant_branches"] = []
+        return state
+    except SQLAlchemyError as e:
+        public_crud.db.rollback()
+        raise
 
 def classify_user_request(user_input) -> str:
     prompt = (
         "Dựa vào câu yêu cầu của khách hàng để xác định câu yêu cầu này thuộc loại nào: \n"
         "- 'booking': nếu yêu cầu của khách có ý định đặt bàn\n"
         "- 'modify': nếu yêu cầu của khách có ý định thay đổi thông tin đặt bàn\n"
-        "- 'cancel': nếu yêu cầu của khách có ý định đặt bàn\n"
+        "- 'cancel': nếu yêu cầu của khách có ý định huỷ đặt bàn\n"
         "### Ví dụ: \n"
         "Input: Tôi muốn đặt bàn cho bữa tối.\n"
         "Output: booking\n"
@@ -81,54 +84,68 @@ def classify_user_request(user_input) -> str:
         "Output: modify\n"
         "Input: Tôi muốn huỷ thông tin đặt bàn của tôi.\n"
         "Output: cancel\n"
-        f"Yêu cầu của khách {user_input}"
+        f"Yêu cầu của khách {user_input}\n"
         "Lưu ý chỉ cho ra output là một trong ba giá trị: booking, modify, cancel.\n"
-        "KHÔNG IN RA THÊM CÁC CHỮ KHÁC NGOÀI BA CHỮ ĐÃ LIỆT KÊ."
+        "KHÔNG IN RA THÊM CÁC CHỮ KHÁC NGOÀI BA CHỮ ĐÃ LIỆT KÊ"
     )
     
     response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
     return response.text.strip().lower()
 
 def fetch_available_tables(state: BookingState, public_crud: PublicCRUD = next(get_public_crud())) -> List[Table]:
-    available_tables = public_crud.get_available_tables(state["booking_info"]["branch_id"])
-    return available_tables
+    try:
+        available_tables = public_crud.get_available_tables(state["booking_info"]["branch_id"])
+        return available_tables
+    except SQLAlchemyError as e:
+        public_crud.db.rollback()
+        raise
 
-def find_availble_table(state: BookingState) -> Table:
-    party_size = state["booking_info"]["party_size"]
-    available_tables = fetch_available_tables(state)
-    capacities = [table.capacity for table in available_tables]
-    print(capacities)
-    table_found = None
-    
-    for table in available_tables:
-        if table.capacity == party_size:
-            table_found = table
-            break
-        elif table.capacity > party_size and table.capacity - party_size <= 3:
-            table_found = table
-            break
+def find_available_table(state: BookingState, public_crud: PublicCRUD = next(get_public_crud())) -> Table:
+    try:
+        party_size = state["booking_info"]["party_size"]
+        available_tables = fetch_available_tables(state, public_crud)
+        capacities = [table.capacity for table in available_tables]
+        print(capacities)
+        table_found = None
         
-    return table_found
+        for table in available_tables:
+            if table.capacity == party_size:
+                table_found = table
+                break
+            elif table.capacity > party_size and table.capacity - party_size <= 3:
+                table_found = table
+                break
+        
+        return table_found
+    except SQLAlchemyError as e:
+        public_crud.db.rollback()
+        raise
 
 def check_exist_customer_by_phone_number(state: BookingState, 
                                          public_crud: PublicCRUD = next(get_public_crud())) -> Customer:
-    
-    phone_number = state["booking_info"].get("phone_number", None)
-    if phone_number is None:
-        raise ValueError("Not found phone number of customer!!")
-    
-    exist_customer = public_crud.get_customer_by_phone_number(phone_number=phone_number)
-    
-    return exist_customer
+    try:
+        phone_number = state["booking_info"].get("phone_number", None)
+        if phone_number is None:
+            raise ValueError("Not found phone number of customer!!")
+        
+        exist_customer = public_crud.get_customer_by_phone_number(phone_number=phone_number)
+        return exist_customer
+    except SQLAlchemyError as e:
+        public_crud.db.rollback()
+        raise
 
 def add_customer(state: BookingState, public_crud: PublicCRUD = next(get_public_crud())) -> Customer:
-    customer = public_crud.create_customer(
-        name = state["booking_info"]["full_name"],
-        phone_number = state["booking_info"]["phone_number"],
-        email = state["booking_info"].get("email", "")
-    )
-    
-    return customer
+    try:
+        customer = public_crud.create_customer(
+            name=state["booking_info"]["full_name"],
+            phone_number=state["booking_info"]["phone_number"],
+            email=state["booking_info"].get("email", "")
+        )
+        public_crud.db.commit()
+        return customer
+    except SQLAlchemyError as e:
+        public_crud.db.rollback()
+        raise
 
 def get_welcome_new_customer_text(state: BookingState) -> str:
     prompt = (
@@ -156,78 +173,84 @@ def get_welcome_new_customer_text(state: BookingState) -> str:
     return response.text.strip()
 
 def add_reservation(state: BookingState, public_crud: PublicCRUD = next(get_public_crud())) -> Reservation:
-    table_id = state["booking_info"]["table_id"], 
-    customer_id = state["customer_id"],
-    branch_id = state["booking_info"]["branch_id"],
-    policy_id = 3, # Cacellation Fee policy
-    reservation_date = state["booking_info"]["reservation_date"], 
-    reservation_time = state["booking_info"]["reservation_time"],
-    party_size = state["booking_info"]["party_size"], 
-    status = "confirmed"
-    
-    reservation = public_crud.create_reservation(
-        table_id=table_id,
-        customer_id=customer_id,
-        branch_id=branch_id,
-        policy_id=policy_id,
-        reservation_date=reservation_date,
-        reservation_time=reservation_time,
-        party_size=party_size,
-        status=status
-    )
-    
-    table_status_update = public_crud.update_table_status_by_table_id(
-        table_id=table_id,
-        data={
-            "status": "reserved"
-        }
-    )
-    
-    add_reservation_history = public_crud.create_reservation_history(
-        customer_id=customer_id,
-        reservation_id=reservation.reservation_id,
-        reservation_date=reservation_date,
-        status="confirmed"
-    )
-    
-    add_reservation_log = public_crud.create_reservation_log(
-        reservation_id=reservation.reservation_id,
-        action="confirmed",
-        details=""
-    )
-    
-    return reservation
+    try:
+        table_id = state["booking_info"]["table_id"]
+        customer_id = state["customer_id"]
+        branch_id = state["booking_info"]["branch_id"]
+        policy_id = 3  # Cancellation Fee policy
+        reservation_date = state["booking_info"]["reservation_date"]
+        reservation_time = state["booking_info"]["reservation_time"]
+        party_size = state["booking_info"]["party_size"]
+        status = "confirmed"
+        
+        reservation = public_crud.create_reservation(
+            table_id=table_id,
+            customer_id=customer_id,
+            branch_id=branch_id,
+            policy_id=policy_id,
+            reservation_date=reservation_date,
+            reservation_time=reservation_time,
+            party_size=party_size,
+            status=status
+        )
+        
+        table_status_update = public_crud.update_table_status_by_table_id(
+            table_id=table_id,
+            data={"status": "reserved"}
+        )
+        
+        add_reservation_history = public_crud.create_reservation_history(
+            customer_id=customer_id,
+            reservation_id=reservation.reservation_id,
+            reservation_date=reservation_date,
+            status="confirmed"
+        )
+        
+        add_reservation_log = public_crud.create_reservation_log(
+            reservation_id=reservation.reservation_id,
+            action="confirmed",
+            details=""
+        )
+        
+        public_crud.db.commit()
+        return reservation
+    except SQLAlchemyError as e:
+        public_crud.db.rollback()
+        raise
 
 def get_notify_reservation_successful(state: BookingState, 
                                       public_crud: PublicCRUD = next(get_public_crud())) -> str:
-    
-    restaurant_name = state["restaurant_info"].get("name", "chúng tôi")
-    customer_name = state["booking_info"].get("full_name", "quý khách")
-    reservation_time = state["booking_info"].get("reservation_time", "Thời gian quý khách đã đặt.")
-    policy_id = 3
-    policy_details = public_crud.get_policy_details_by_policy_id(policy_id=policy_id)
-    print(policy_details)
-    
-    prompt = (
-        "Bạn là nhân viên phục vụ nhà hàng có nhiều năm kinh nghiệm và phong cách nói chuyện lịch sự và trang trọng.\n"
-        "Bạn hãy chúc mừng khách hàng đã đặt bàn thành công với các thông tin được cung cấp sau đây:\n"
-        f"- Tên nhà hàng: {restaurant_name}.\n"
-        f"- Tên khách hàng: {customer_name}.\n"
-        f"- Thông tin về chính sách huỷ đặt bàn: {policy_details}.\n"
-        f"- Thời gian đặt bàn: {reservation_time}"
-        "Hãy tạo ra MỘT câu chúc mừng khách đã đặt bàn thành công.\n"
-        "### LƯU Ý:\n"
-        "- Luôn viết hoa chữ cái đầu tiên của tên khách hàng.\n"
-        "- Dựa vào thông tin về chính sách huỷ bàn và viết lại một cách dễ hiểu cho khách hàng."
-    )
-    
-    response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
-    return response.text.strip()
+    try:
+        restaurant_name = state["restaurant_info"].get("name", "chúng tôi")
+        customer_name = state["booking_info"].get("full_name", "quý khách")
+        reservation_time = state["booking_info"].get("reservation_time", "Thời gian quý khách đã đặt.")
+        policy_id = 3
+        policy_details = public_crud.get_policy_details_by_policy_id(policy_id=policy_id)
+        print(policy_details)
+        
+        prompt = (
+            "Bạn là nhân viên phục vụ nhà hàng có nhiều năm kinh nghiệm và phong cách nói chuyện lịch sự và trang trọng.\n"
+            "Bạn hãy chúc mừng khách hàng đã đặt bàn thành công với các thông tin được cung cấp sau đây:\n"
+            f"- Tên nhà hàng: {restaurant_name}.\n"
+            f"- Tên khách hàng: {customer_name}.\n"
+            f"- Thông tin về chính sách huỷ đặt bàn: {policy_details}.\n"
+            f"- Thời gian đặt bàn: {reservation_time}\n"
+            "Hãy tạo ra MỘT câu chúc mừng khách đã đặt bàn thành công.\n"
+            "### LƯU Ý:\n"
+            "- Luôn viết hoa chữ cái đầu tiên của tên khách hàng.\n"
+            "- Dựa vào thông tin về chính sách huỷ bàn và viết lại một cách dễ hiểu cho khách hàng."
+        )
+        
+        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
+        return response.text.strip()
+    except SQLAlchemyError as e:
+        public_crud.db.rollback()
+        raise
 
 def classify_intent_for_suggestion(user_input) -> str:
     prompt = (
         "Bạn là nhân viên phục vụ nhà hàng có nhiều năm kinh nghiệm và phong cách nói chuyện lịch sự và trang trọng.\n"
-        "Dựa vào câu yêu cầu của khách hàng để xác định câu yêu cầu này thuộc loại nào: \n"
+        "Dựa vào câu yêu cầu của khách hàng để xác định câu yêu cầu này thuộc loại WHICH: \n"
         "- 'no': nếu khách hàng không muốn thay đổi giờ đặt bàn.\n"
         "- 'yes': nếu khách hàng có ý định muốn thay đổi thông tin đặt bàn.\n"
         "### Ví dụ: \n"
@@ -237,7 +260,7 @@ def classify_intent_for_suggestion(user_input) -> str:
         "Output: no\n"
         "Input: Tôi muốn thử một giờ đặt bàn khác.\n"
         "Output: yes\n"
-        f"Yêu cầu của khách {user_input}"
+        f"Yêu cầu của khách {user_input}\n"
     )
     
     response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
@@ -267,37 +290,35 @@ def extract_phone_number(text):
 
 def get_reservations_of_customer(state: BookingState, 
                                  public_crud: PublicCRUD = next(get_public_crud())) -> Optional[List[Dict[str, Any]]]:
-    
-    customer_id = state["booking_info"]["customer_id"]
-    list_reservation = public_crud.get_confirmed_reservations_by_customer(customer_id)
-    list_branch_id = [reservation.branch_id for reservation in list_reservation]
-    list_branch_addresses = [public_crud.get_restaurant_branches(branch_id) for branch_id in list_branch_id]
-    
-    # print("list_reservation", len(list_reservation))
-    # print("list_branch_id", len(list_branch_id))
-    # print("list_branch_addresses", len(list_branch_addresses))
-    
-    data = []
-    
-    for reservation, branch in zip(list_reservation, list_branch_addresses):
-        parse_reservation_date = reservation.reservation_date.strftime('%d/%m/%Y')
-        parse_reservation_time = reservation.reservation_time.strftime('%H:%M')
+    try:
+        customer_id = state["booking_info"]["customer_id"]
+        list_reservation = public_crud.get_confirmed_reservations_by_customer(customer_id)
+        list_branch_id = [reservation.branch_id for reservation in list_reservation]
+        list_branch_addresses = [public_crud.get_restaurant_branches(branch_id) for branch_id in list_branch_id]
         
-        data.append({
-            "reservation_id": reservation.reservation_id,
-            "branch_id": reservation.branch_id,
-            "address": branch.address,
-            "reservation_date": parse_reservation_date,
-            "reservation_time": parse_reservation_time,
-            "party_size": reservation.party_size
-        })
-    
-    return data
+        data = []
+        
+        for reservation, branch in zip(list_reservation, list_branch_addresses):
+            parse_reservation_date = reservation.reservation_date.strftime('%d/%m/%Y')
+            parse_reservation_time = reservation.reservation_time.strftime('%H:%M')
+            
+            data.append({
+                "reservation_id": reservation.reservation_id,
+                "branch_id": reservation.branch_id,
+                "address": branch.address,
+                "reservation_date": parse_reservation_date,
+                "reservation_time": parse_reservation_time,
+                "party_size": reservation.party_size
+            })
+        
+        return data
+    except SQLAlchemyError as e:
+        public_crud.db.rollback()
+        raise
 
 def update_reservation_info(state: BookingState,
                             public_crud: PublicCRUD = next(get_public_crud())) -> Optional[Reservation]:
-    
-    try: 
+    try:
         update_data = {
             "branch_id": state["booking_info"]["branch_id"],
             "reservation_date": state["booking_info"]["reservation_date"], 
@@ -312,7 +333,7 @@ def update_reservation_info(state: BookingState,
 
         updated_reservation_history = public_crud.update_reservation_history_by_reservation_id(
             reservation_id=updated_reservation.reservation_id,
-            data= {
+            data={
                 "reservation_date": state["booking_info"]["reservation_date"]
             }
         )
@@ -320,17 +341,17 @@ def update_reservation_info(state: BookingState,
         add_modify_reservation_log = public_crud.create_reservation_log(
             reservation_id=updated_reservation.reservation_id,
             action="modified",
-            details="Khách hàng sứa lại thông tin đặt bàn"
+            details="Khách hàng sửa lại thông tin đặt bàn"
         )
         
-    except:
+        public_crud.db.commit()
+        return updated_reservation
+    except SQLAlchemyError as e:
+        public_crud.db.rollback()
         return None
-    
-    return updated_reservation
 
 def cancel_reservation(state: BookingState,
                        public_crud: PublicCRUD = next(get_public_crud())) -> Optional[Reservation]:
-    
     try:
         update_data = {
             "status": "cancelled"
@@ -356,8 +377,9 @@ def cancel_reservation(state: BookingState,
             table_id=updated_reservation.table_id,
             data={"status": "available"}
         )
-    except:
+        
+        public_crud.db.commit()
+        return updated_reservation
+    except SQLAlchemyError as e:
+        public_crud.db.rollback()
         return None
-    
-    return updated_reservation
-    

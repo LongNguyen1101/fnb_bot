@@ -34,11 +34,10 @@ async def stream_messages(events: Any, thread_id: str):
                         message_dict = {
                             "content": message.content,
                             "type": message.type,
-                            "id": message.id 
+                            "id": message.id,
+                            "thread_id": thread_id
                         }
                         yield f"data: {json.dumps(message_dict, ensure_ascii=False)}\n\n"
-
-        yield f"data: {json.dumps({'thread_id': thread_id}, ensure_ascii=False)}\n\n"
 
     except Exception as e:
         error_dict = {"error": str(e), "thread_id": thread_id}

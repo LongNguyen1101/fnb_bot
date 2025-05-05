@@ -5,7 +5,7 @@ from langgraph.types import interrupt
 import json
 from datetime import datetime
 from bot.core.graph_function import (
-    find_availble_table,
+    find_available_table,
     check_exist_customer_by_phone_number,
     add_customer,
     add_reservation,
@@ -68,7 +68,7 @@ def get_user_booking_information_node(state: BookingState):
     return state
 
 def check_availble_table_node(state: BookingState):
-    table_found = find_availble_table(state)
+    table_found = find_available_table(state)
     
     if table_found is None:
         state["table_available"] = False
