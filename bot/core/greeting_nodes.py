@@ -21,16 +21,24 @@ def welcome_node(state: BookingState) -> BookingState:
     if not state.get("restaurant_info"):
         state = fetch_restaurant_info(state)
     
-    prompt = (
-        "Tạo một câu chào hỏi thân thiện và đa dạng dựa trên thông tin nhà hàng sau:\n"
-        f"- Tên: {state['restaurant_info'].get('name', '')}\n"
-        f"- Miêu tả nhà hàng: {state['restaurant_info'].get('description', '')}\n"
-        "Ví dụ: Xin chào! Chào mừng bạn đến với nhà hàng [Tên].\n"
-        "Lưu ý chỉ trả về DUY NHẤT MỘT CÂU CHÀO."
-    )
-    response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
+    # prompt = (
+    #     "Tạo một câu chào hỏi thân thiện và đa dạng dựa trên thông tin nhà hàng sau:\n"
+    #     f"- Tên: {state['restaurant_info'].get('name', '')}\n"
+    #     f"- Miêu tả nhà hàng: {state['restaurant_info'].get('description', '')}\n"
+    #     "Ví dụ: Xin chào! Chào mừng bạn đến với nhà hàng [Tên].\n"
+    #     "Lưu ý chỉ trả về DUY NHẤT MỘT CÂU CHÀO."
+    # )
+    # response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
     
-    welcome_message = AIMessage(content=response.text.strip())
+    restaurant_name = state['restaurant_info'].get('name', 'chúng tôi')
+    description = state['restaurant_info'].get('description', '')
+    
+    response = (
+        f"Chào mừng đến với nhà hàng {restaurant_name}.\n"
+        f"{description}"
+    )
+    
+    welcome_message = AIMessage(content=response.strip())
     
     # Cập nhật state với tin nhắn chào bằng add_messages
     state["messages"] = add_messages(state["messages"], [welcome_message])

@@ -1,5 +1,6 @@
 # BOOKINGTABLE/bot/utils/main.py
 from fastapi import FastAPI
+import uvicorn
 from bot.utils.database import Base, engine, init_vector_schema_and_indexes
 from bot.schema.models import *
 from bot.schema.vector_models import *
