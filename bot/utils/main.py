@@ -14,9 +14,9 @@ from bot.api.policy_type_routers import policy_type_router
 from bot.api.policy_routers import policy_router
 from bot.api.policy_detail_routers import policy_detail_router
 from bot.api.chatbot_router import chatbot_router
+from fastapi.middleware.cors import CORSMiddleware
 
 from bot.core.graph import build_graph
-from bot.core.state import BookingState
 
 app = FastAPI(
     title="Restaurant Booking API",
@@ -24,6 +24,14 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",  # URL cho Swagger UI (mặc định)
     redoc_url="/redoc"  # URL cho ReDoc (mặc định)
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Replace with specific origins (e.g., ["http://localhost:3000"]) in production
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],  # Include OPTIONS
+    allow_headers=["Content-Type", "Action"],  # Allow custom Action header
 )
 
 graph = build_graph()
