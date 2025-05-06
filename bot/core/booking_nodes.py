@@ -11,7 +11,8 @@ from bot.core.graph_function import (
     add_reservation,
     get_notify_reservation_successful,
     classify_intent_for_suggestion,
-    get_meet_again_text
+    get_meet_again_text,
+    extract_booking_input_user
 )
 
 # BOOKING NODES
@@ -19,6 +20,7 @@ def booking_node(state: BookingState):
     request = (
         "Quý khách hãy điền các thông tin dưới đây để nhà hàng {restaurant_name} " 
         "giúp quý khách đặt bàn một cách nhanh nhất nhé: \n"
+        "Xin hãy cho nhà hàng biết tên của bạn: \n"
         "Xin hãy chọn chi nhánh quý khách muốn đặt bàn: \n"
         "Xin hãy chọn ngày quý khách muốn đặt bàn:: \n"
         "Xin hãy chọn thời gian quý khách muốn đặt bàn: \n"
@@ -38,7 +40,9 @@ def booking_node(state: BookingState):
 
 def get_user_booking_information_node(state: BookingState):
     booking_info = interrupt(None)
-
+    booking_info = extract_booking_input_user(booking_info)
+    booking_info = json.loads(booking_info)
+    
     try:
         # Kiểm tra các trường cần thiết
         if not all(key in booking_info for key in ["branch_id", "reservation_date", "reservation_time", "party_size",

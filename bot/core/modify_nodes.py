@@ -8,7 +8,8 @@ from bot.core.graph_function import (
     extract_phone_number,
     check_exist_customer_by_phone_number,
     get_reservations_of_customer,
-    update_reservation_info
+    update_reservation_info,
+    extract_modify_input_user
 )
 
 def modify_node(state: BookingState) -> BookingState:
@@ -98,12 +99,25 @@ def check_booking_node(state: BookingState) -> BookingState:
 
 def return_customer_reservation_modify_node(state: BookingState) -> BookingState:
     list_reservations = state.get("list_reservations", None)
-    text = (
-        "------------------------\n"
-        f"{list_reservations}\n"
-        "------------------------\n"
-        "Quý khách hãy sửa đổi thông tin đặt bàn theo mong muốn của quý khách."
-    )
+    # list_reservations = json.dumps(list_reservations)
+    text = ""
+    for reservation in list_reservations:
+        try:
+            text += (
+                f"Thông tin đặt bàn số: {reservation['reservation_id']}\n"
+                f"Chi nhánh: {reservation['branch_id']}\n"
+                f"Địa chỉ: {reservation['address']}\n"
+                f"Ngày đặt: {reservation['reservation_date']}\n"
+                f"Thời gian đặt: {reservation['reservation_time']}\n"
+                f"Số lượng người: {reservation['party_size']}\n\n"
+            )
+        except KeyError as e:
+            text += f"Lỗi: Thiếu thông tin cho đặt bàn (thiếu key: {e})\n\n"
+
+    if not list_reservations:
+        text += "Không có thông tin đặt bàn nào.\n"
+
+    text += "Quý khách hãy sửa đổi thông tin đặt bàn theo mong muốn của quý khách."
     
     state["messages"] = add_messages(state["messages"], [AIMessage(content=text)])
     return state
@@ -122,6 +136,8 @@ def notify_not_found_booking_node(state: BookingState) -> BookingState:
 
 def get_modfify_booking_info_node(state: BookingState) -> BookingState:
     update_info = interrupt(None)
+    update_info = extract_modify_input_user(update_info)
+    update_info = json.loads(update_info)
     print("update info", update_info)
     
     try:

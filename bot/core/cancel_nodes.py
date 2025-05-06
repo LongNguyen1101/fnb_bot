@@ -5,7 +5,8 @@ from langgraph.types import interrupt
 from datetime import datetime
 import json
 from bot.core.graph_function import (
-    cancel_reservation
+    cancel_reservation,
+    extract_modify_input_user
 )
 
 
@@ -23,18 +24,33 @@ def cancel_node(state: BookingState):
 def return_customer_reservation_cancel_node(state: BookingState) -> BookingState:
     list_reservations = state.get("list_reservations", None)
     
-    text = (
-        "------------------------\n"
-        f"{list_reservations}\n"
-        "------------------------\n"
-        "Quý khách hãy chọn thông tin đặt bàn mà quý khách muốn huỷ."
-    )
+    text = ""
+    for reservation in list_reservations:
+        try:
+            text += (
+                f"Thông tin đặt bàn số: {reservation['reservation_id']}\n"
+                f"Chi nhánh: {reservation['branch_id']}\n"
+                f"Địa chỉ: {reservation['address']}\n"
+                f"Ngày đặt: {reservation['reservation_date']}\n"
+                f"Thời gian đặt: {reservation['reservation_time']}\n"
+                f"Số lượng người: {reservation['party_size']}\n\n"
+            )
+        except KeyError as e:
+            text += f"Lỗi: Thiếu thông tin cho đặt bàn (thiếu key: {e})\n\n"
+
+    if not list_reservations:
+        text += "Không có thông tin đặt bàn nào.\n"
+
+    text += "Quý khách hãy sửa đổi thông tin đặt bàn theo mong muốn của quý khách."
     
     state["messages"] = add_messages(state["messages"], [AIMessage(content=text)])
     return state
 
 def get_cancel_reservation(state: BookingState) -> BookingState:
     update_info = interrupt(None)
+    update_info = extract_modify_input_user(update_info)
+    update_info = json.loads(update_info)
+    print("update info", update_info)
     
     try:
         # update_info = json.loads(user_request)

@@ -383,3 +383,87 @@ def cancel_reservation(state: BookingState,
     except SQLAlchemyError as e:
         public_crud.db.rollback()
         return None
+    
+    
+def extract_booking_input_user(user_input: str) -> str:
+    prompt = (
+        "Bạn là nhân viên phục vụ nhà hàng có nhiều năm kinh nghiệm, phong cách nói chuyện lịch sự và trang trọng.\n"
+        "Dựa vào câu yêu cầu của khách hàng, hãy trích xuất thông tin đặt bàn và trả về dưới dạng JSON với các trường sau:\n"
+        "- branch_id: Số chi nhánh (số nguyên, trích từ từ khóa như 'chi nhánh 1').\n"
+        "- reservation_date: Ngày đặt bàn (định dạng DD/MM/YYYY).\n"
+        "- reservation_time: Thời gian đặt bàn (định dạng HH:MM, chuyển đổi từ các cách diễn đạt như '7h tối' thành '19:00').\n"
+        "- party_size: Số lượng người (số nguyên).\n"
+        "- full_name: Họ và tên đầy đủ của khách.\n"
+        "- phone_number: Số điện thoại.\n"
+        "- email: Địa chỉ email (để trống '' nếu không được cung cấp).\n"
+        "Hãy phân tích câu yêu cầu để trích xuất đúng thông tin, đảm bảo định dạng JSON hợp lệ. Nếu thông tin không đầy đủ, giữ các trường tương ứng với giá trị hợp lý (ví dụ: email để trống).\n"
+        "### Ví dụ:\n"
+        "Input: Tên là Nguyễn Hoàng Long, chi nhánh 1, ngày đặt là 20/10/2025, thời gian đặt là 7h tối, số lượng người là 5 và số điện thoại của tôi là 012345678\n"
+        "Output:\n"
+        "{\n"
+        "    \"branch_id\": 1,\n"
+        "    \"reservation_date\": \"20/10/2025\",\n"
+        "    \"reservation_time\": \"19:00\",\n"
+        "    \"party_size\": 5,\n"
+        "    \"full_name\": \"Nguyễn Hoàng Long\",\n"
+        "    \"phone_number\": \"012345678\",\n"
+        "    \"email\": \"\"\n"
+        "}\n"
+        "Input: Tôi là Trần Văn An, muốn đặt bàn cho 3 người tại chi nhánh 2, ngày 15/11/2025, lúc 12h trưa, số điện thoại 0987654321\n"
+        "Output:\n"
+        "{\n"
+        "    \"branch_id\": 2,\n"
+        "    \"reservation_date\": \"15/11/2025\",\n"
+        "    \"reservation_time\": \"12:00\",\n"
+        "    \"party_size\": 3,\n"
+        "    \"full_name\": \"Trần Văn An\",\n"
+        "    \"phone_number\": \"0987654321\",\n"
+        "    \"email\": \"\"\n"
+        "}\n"
+        f"Yêu cầu của khách: {user_input}\n"
+        "Trả về kết quả dưới dạng JSON."
+    )
+    
+    response = client.models.generate_content(model=MODEL_NAME, contents=prompt).text.strip().lower()
+    parse_json = response.replace("```json", "").replace("```", "")
+    return parse_json
+
+def extract_modify_input_user(user_input: str) -> str:
+    prompt = (
+        "Bạn là nhân viên phục vụ nhà hàng có nhiều năm kinh nghiệm, phong cách nói chuyện lịch sự và trang trọng.\n"
+        "Dựa vào câu yêu cầu của khách hàng, hãy trích xuất thông tin đặt bàn và trả về dưới dạng JSON với các trường sau:\n"
+        "- reservation_id_chosen: Số đặt bàn (số nguyên, trích từ từ khóa như 'đặt bàn số 8').\n"
+        "- branch_id: Số chi nhánh (số nguyên, trích từ từ khóa như 'chi nhánh 1').\n"
+        "- address: Địa chỉ của chi nhánh (chuỗi, ví dụ: '123 Đường Lê Lợi, Quận 1, TP.HCM').\n"
+        "- reservation_date: Ngày đặt bàn (định dạng DD/MM/YYYY).\n"
+        "- reservation_time: Thời gian đặt bàn (định dạng HH:MM, chuyển đổi từ các cách diễn đạt như '8:00 sáng' thành '08:00').\n"
+        "- party_size: Số lượng người (số nguyên).\n"
+        "Hãy phân tích câu yêu cầu để trích xuất đúng thông tin, đảm bảo định dạng JSON hợp lệ. Nếu thông tin không đầy đủ, giữ các trường tương ứng với giá trị hợp lý (ví dụ: để trống hoặc NULL cho các trường không bắt buộc, nhưng trong trường hợp này giả định input cung cấp đủ thông tin).\n"
+        "### Ví dụ:\n"
+        "Input: Tôi muốn thay đổi thông tin đặt bàn số 8, chi nhánh 1, địa chỉ là 123 Đường Lê Lợi, Quận 1, TP.HCM, ngày đặt bàn là 20/10/2025, thời gian đặt bàn là 8:00 sáng, số lượng người là 5\n"
+        "Output:\n"
+        "{\n"
+        "    \"reservation_id_chosen\": 8,\n"
+        "    \"branch_id\": 1,\n"
+        "    \"address\": \"123 Đường Lê Lợi, Quận 1, TP.HCM\",\n"
+        "    \"reservation_date\": \"20/10/2025\",\n"
+        "    \"reservation_time\": \"08:00\",\n"
+        "    \"party_size\": 5\n"
+        "}\n"
+        "Input: Tôi muốn thay đổi đặt bàn số 12, chi nhánh 2, địa chỉ 456 Đường Nguyễn Huệ, Quận 1, TP.HCM, ngày 15/11/2025, lúc 7:00 tối, cho 4 người\n"
+        "Output:\n"
+        "{\n"
+        "    \"reservation_id_chosen\": 12,\n"
+        "    \"branch_id\": 2,\n"
+        "    \"address\": \"456 Đường Nguyễn Huệ, Quận 1, TP.HCM\",\n"
+        "    \"reservation_date\": \"15/11/2025\",\n"
+        "    \"reservation_time\": \"19:00\",\n"
+        "    \"party_size\": 4\n"
+        "}\n"
+        f"Yêu cầu của khách: {user_input}\n"
+        "Trả về kết quả dưới dạng JSON."
+    )
+    
+    response = client.models.generate_content(model=MODEL_NAME, contents=prompt).text.strip().lower()
+    parse_json = response.replace("```json", "").replace("```", "")
+    return parse_json
