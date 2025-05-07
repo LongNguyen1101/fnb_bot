@@ -31,7 +31,7 @@ class PolicyCreate(BaseModel):
     is_active: bool = True
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "policy_type_id": 1,
                 "branch_id": 1,
@@ -47,7 +47,7 @@ class PolicyUpdate(BaseModel):
     is_active: bool | None = None
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "name": "Updated Cancellation Fee",
                 "is_active": False

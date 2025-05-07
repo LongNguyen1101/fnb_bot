@@ -20,7 +20,7 @@ class TableCreate(BaseModel):
     is_active: bool = True
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "branch_id": 1,
                 "table_number": "T01",
@@ -36,7 +36,7 @@ class TableUpdate(BaseModel):
     is_active: bool | None = None
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "table_number": "T02",
                 "capacity": 6

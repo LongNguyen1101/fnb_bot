@@ -21,7 +21,7 @@ class RestaurantCreate(BaseModel):
     description: str
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "name": "Lửa & Lá",
                 "description": """Lửa & Lá là nhà hàng ẩm thực fusion độc đáo kết hợp giữa hương vị truyền thống Việt Nam và phong cách hiện đại phương Tây. 
@@ -34,7 +34,7 @@ class RestaurantUpdate(BaseModel):
     description: str | None = None
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "name": "Lửa & Lá",
                 "description": "description updated."

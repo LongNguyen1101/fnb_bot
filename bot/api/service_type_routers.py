@@ -40,7 +40,7 @@ class ServiceTypeCreate(BaseModel):
         return value
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "branch_id": 1,
                 "service_name": "Dine-In",
@@ -68,7 +68,7 @@ class ServiceTypeUpdate(BaseModel):
         return value
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "service_name": "Takeaway",
                 "description": "Dịch vụ mang đi nhanh chóng"

@@ -29,7 +29,7 @@ class PolicyTypeCreate(BaseModel):
         return value
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "type_name": "Cancellation",
                 "description": "Chính sách hủy đặt bàn"
@@ -53,7 +53,7 @@ class PolicyTypeUpdate(BaseModel):
         return value
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "type_name": "Deposit",
                 "description": "Yêu cầu đặt cọc trước khi đặt bàn"

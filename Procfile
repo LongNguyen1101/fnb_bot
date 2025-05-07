@@ -1,1 +1,1 @@
-web: uvicorn bot.utils.main:app --host=0.0.0.0 --port=${PORT}
+# web: uvicorn bot.utils.main:app --host=0.0.0.0 --port=$PORT

@@ -38,7 +38,7 @@ class ReservationCreate(BaseModel):
         return value
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "table_id": 1,
                 "customer_id": 1,
@@ -81,7 +81,7 @@ class ReservationUpdate(BaseModel):
         return value
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "status": "confirmed",
                 "confirmed_at": "2025-04-10T12:00:00",

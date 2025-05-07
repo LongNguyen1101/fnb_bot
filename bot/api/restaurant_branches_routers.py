@@ -21,7 +21,7 @@ class RestaurantBranchCreate(BaseModel):
     max_capacity: int
     
     class Config: 
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "restaurant_id": 1,
                 "address": "123 Đường Lê Lợi, Quận 1, TP.HCM",
@@ -39,7 +39,7 @@ class RestaurantBranchUpdate(BaseModel):
     max_capacity: int | None = None
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "address": "456 Đường Nguyễn Huệ, Quận 1, TP.HCM",
                 "max_capacity": 60

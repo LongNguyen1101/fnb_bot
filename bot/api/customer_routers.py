@@ -36,7 +36,7 @@ class CustomerCreate(BaseModel):
         return value
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "name": "Nguyen Van A",
                 "phone_number": "+84912345678",
@@ -71,7 +71,7 @@ class CustomerUpdate(BaseModel):
         return value
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "name": "Nguyen Van B",
                 "phone_number": "+84987654321",

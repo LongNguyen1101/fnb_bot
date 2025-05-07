@@ -25,7 +25,7 @@ class TableStatusCreate(BaseModel):
         return value
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "table_id": 1,
                 "status": "available"
@@ -46,7 +46,7 @@ class TableStatusUpdate(BaseModel):
         return value
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "status": "reserved"
             }

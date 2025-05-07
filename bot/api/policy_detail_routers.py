@@ -25,7 +25,7 @@ class PolicyDetailCreate(BaseModel):
     details: Dict[str, Any]
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "policy_id": 1,
                 "details": {
@@ -40,7 +40,7 @@ class PolicyDetailUpdate(BaseModel):
     details: Dict[str, Any] | None = None
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "details": {
                     "max_hours": 3,
