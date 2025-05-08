@@ -125,6 +125,7 @@ def get_user_confirmation_booking_node(state: BookingState):
     
     state["user_input"] = user_response
     state["intent"] = user_response
+    state["messages"] = add_messages(state["messages"], [HumanMessage(content=user_response)])
     return state
 
 def add_customer_node(state: BookingState):
@@ -160,6 +161,7 @@ def welcome_new_customer_node(state: BookingState):
 def welcome_old_customer_node(state: BookingState):
     restaurant_name = state["restaurant_info"].get("name", "chúng tôi")
     customer_name = state["booking_info"].get("full_name", "quý khách")
+    
     text = (
         f"Chào mừng quý khách {customer_name} đã quay trở lại nhà hàng {restaurant_name}.\n"
         "Nhà hàng của chúng tôi rất vui khi quý khách đã tiếp tục đặt bàn tại nhà hàng.\n"

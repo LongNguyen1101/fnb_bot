@@ -225,7 +225,7 @@ def get_notify_reservation_successful(state: BookingState,
         customer_name = state["booking_info"].get("full_name", "quý khách")
         reservation_time = state["booking_info"].get("reservation_time", "Thời gian quý khách đã đặt.")
         policy_id = 3
-        policy_details = public_crud.get_policy_details_by_policy_id(policy_id=policy_id)
+        policy_details = public_crud.get_policy_details_by_policy_id(policy_id=policy_id).details
         print(policy_details)
         
         prompt = (
@@ -238,7 +238,8 @@ def get_notify_reservation_successful(state: BookingState,
             "Hãy tạo ra MỘT câu chúc mừng khách đã đặt bàn thành công.\n"
             "### LƯU Ý:\n"
             "- Luôn viết hoa chữ cái đầu tiên của tên khách hàng.\n"
-            "- Dựa vào thông tin về chính sách huỷ bàn và viết lại một cách dễ hiểu cho khách hàng."
+            "- Dựa vào thông tin về chính sách huỷ bàn và viết lại một cách dễ hiểu cho khách hàng.\n"
+            "- Thêm một câu vào cuối đoạn ví dụ như: 'rất mong phục vụ quý khách'."
         )
         
         response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
@@ -424,7 +425,7 @@ def extract_booking_input_user(user_input: str) -> str:
         "Trả về kết quả dưới dạng JSON."
     )
     
-    response = client.models.generate_content(model=MODEL_NAME, contents=prompt).text.strip().lower()
+    response = client.models.generate_content(model=MODEL_NAME, contents=prompt).text.strip()
     parse_json = response.replace("```json", "").replace("```", "")
     return parse_json
 
