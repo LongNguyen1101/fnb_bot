@@ -9,7 +9,15 @@ load_dotenv()
 DATABASE_URL = os.getenv('DATABASE_URL')
 
 # Tạo engine cho SQLAlchemy
-engine = create_engine(DATABASE_URL, echo=False)  # echo=True để debug nếu cần
+engine = create_engine(
+    DATABASE_URL, 
+    echo=False,
+    pool_size=10,
+    max_overflow=2,
+    pool_recycle=300,
+    pool_pre_ping=True,
+    pool_use_lifo=True
+)
 
 # Tạo session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
