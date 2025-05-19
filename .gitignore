@@ -7,3 +7,4 @@ bot/.env
 bot/test_normal_booking.ipynb
 bot/test_normal_modify.ipynb
 bot/temp.py
+test_normal_booking.ipynb

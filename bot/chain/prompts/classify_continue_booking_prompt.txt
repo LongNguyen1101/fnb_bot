@@ -1,0 +1,14 @@
+Ngữ cảnh: Sau khi nhà hàng thông báo rằng hiện tại đã hết bàn vào thời gian khách yêu cầu, chatbot hỏi khách rằng liệu họ có muốn đặt vào một ngày hoặc giờ khác không.
+
+Tin nhắn phản hồi của khách là:
+"{user_input}"
+
+Hãy phân loại ý định của khách thành **một trong ba nhóm sau**:
+
+1. no_continue — nếu khách **không muốn tiếp tục đặt nữa**. Ví dụ: "Thôi, cảm ơn", "Không cần nữa", "Không sao đâu", "Để dịp khác", v.v.
+
+2. continue_without_info — nếu khách **muốn tiếp tục đặt**, nhưng **chưa cung cấp thông tin đặt bàn cụ thể**. Ví dụ: "Dạ có", "Tôi muốn đặt lại", "Ok", "Còn giờ nào khác không?", v.v.
+
+3. continue_with_info — nếu khách **muốn tiếp tục đặt** và **đã cung cấp thông tin đặt bàn cụ thể**, như ngày, giờ, hoặc số người. Ví dụ: "Tôi muốn đặt lại vào lúc 7h tối mai", "Đặt giúp tôi trưa ngày kia nhé", v.v.
+
+Chỉ trả lời đúng một từ khóa trong ba lựa chọn: `"no_continue"`, `"continue_without_info"`, hoặc `"continue_with_info"`.

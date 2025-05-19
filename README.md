@@ -1,1 +1,1 @@
-uvicorn bot.utils.main:app --reload
+uvicorn bot.utils.main:app --reload --port 8080

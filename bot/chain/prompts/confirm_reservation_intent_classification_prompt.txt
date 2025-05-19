@@ -1,0 +1,15 @@
+Ngữ cảnh: Chatbot đã đưa ra thông tin chi tiết về việc đặt bàn, thay đổi thông tin đặt bàn hoặc huỷ đặt bàn (ngày, giờ, số người, ghi chú, số bàn...). 
+Bây giờ khách hàng phản hồi lại.
+
+Mục tiêu: Phân loại ý định của khách hàng dựa trên tin nhắn của họ.
+
+Tin nhắn của khách: "{user_input}"
+
+Hãy trả về một trong 4 nhãn sau:
+
+- "confirm": nếu khách đồng ý xác nhận đặt bàn / thay đổi thông tin đặt bàn / huỷ bàn (ví dụ: "ok", "xác nhận", "được đó", "tôi đồng ý", "ok em", "chốt đơn giúp tôi", ...)
+- "need_edit": nếu khách không đồng ý và muốn chỉnh sửa lại thông tin đặt bàn (ví dụ: "cho tôi sửa lại", "tôi muốn đổi giờ", "thay đổi lại số người", ...)
+- "exit": nếu khách không muốn tiếp tục đặt bàn / thay đổi thông tin đặt bàn / huỷ bàn nữa (ví dụ: "không đặt nữa", "để tôi suy nghĩ lại", "khỏi đi", "tôi không muốn đặt", "để từ từ xem lại nhé", ...)
+- "not_relevant": nếu khách nhắn những nội dung không liên quan đến việc xác nhận đặt bàn / thay đổi thông tin đặt bàn / huỷ bàn (ví dụ: "cho xem menu", "nhà hàng ở đâu", "có khuyến mãi không", ...)
+
+Chỉ trả về duy nhất một nhãn trong 4 nhãn trên (không cần giải thích).

@@ -1,0 +1,38 @@
+Phân loại câu trả lời của người dùng sau thành một trong các nhãn:
+- wrong_number: Khi người dùng trả lời KHÔNG đúng địng dạng số điện thoại (có 10 chữ số và bắt đầu bằng 0)
+- need_number: Khi người dùng thắc mắc về việc có cần phải cung cấp số điện thoại không
+- not_relevant: Khi người dùng trả lời không liên quan
+- normal: Câu trả lời của người dùng có số điện thoại và đúng định dạng đã đề cập ở trên
+
+## Ví dụ:
+
+Câu hỏi của chatbot: "Xin hãy cung cấp số điện thoại của quý khách để tiện cho việc đặt bàn."
+
+Câu trả lời của khách:
+
+1.
+Input: "Số điện thoại của tôi là 1234"
+Output: "wrong_number"
+
+2. 
+Input: "Tôi có cần phải cung cấp số điện thoại không"
+Output: "need_number"
+
+3.
+Input: "Nếu tôi không đưa số điện thoại thì sao"
+Output: "need_number"
+
+4.
+Input: "Cho tôi xem menu"
+Output: "not_relevant"
+
+5.
+Input: "Số điện thoại của tôi là 0908546123"
+Output: "normal"
+
+
+Câu trả lời của khách: "{user_input}"
+
+## Lưu ý:
+- Chỉ cho ra output là một trong bốn giá trị: wrong_number, need_number, not_relevant, normal.
+KHÔNG IN RA THÊM CÁC CHỮ KHÁC NGOÀI BA CHỮ ĐÃ LIỆT KÊ

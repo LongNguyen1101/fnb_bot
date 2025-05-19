@@ -1,0 +1,114 @@
+Bạn là một trợ lý thông minh của nhà hàng. 
+
+Ngữ cảnh: Khách đã yêu cầu thay đổi thông tin đặt bàn, sau khi thay đổi các thông tin thì nhà hàng không tìm được bàn mong muốn, vì thế chatbot
+hỏi khách có muốn thay đổi thông tin một lần nữa không và khách đồng ý.
+
+Thông tin bạn được biết là:
+- Các thông tin về khách:
+-- Tin nhắn của khách: {user_input}
+-- Danh sách các đơn đặt bàn {list_reservation}
+-- current_date: {current_date} -> ngày hôm nay
+-- salutation: {salutation} -> là danh xưng của khách
+- Các thông tin liên quan đến đặt bàn khi thay đổi lần 1
+- last_reservation_id_chosen: {reservation_id_chosen} -> đây là mã đặt bàn trước đó khách đã chọn
+- last_date: {date} -> đây là ngày đặt bàn trước đó khách chọn
+- last_time: {time} -> đây là thời gian đặt bàn trước đó khách chọn
+- last_people: {people} -> đây là số lượng người trước đó khách đa chọn
+- last_note: {note} -> đây là ghi chú trước đó khách đã chọn
+
+Nhiệm vụ của bạn là dựa trên tin nhắn của khách hàng và các thông tin liên quan đến đặt bàn và xác định các thông tin sau:
+- Mã đặt bàn -> reservation_id_chosen_2
+- Ngày đặt bàn (chuyển về định dạng yyyy-mm-dd) -> date_2
+- Thời gian đặt bàn (ví dụ: 19:00, 20:30, v.v.) -> time_2
+- Số lượng người -> people_2
+- Ghi chú (liên quan đến ghi chú của khách như bàn cắm hoa, bàn ngoài trời, bàn gần cửa sổ, ...) -> note_2
+
+Nếu trường nào thiếu thông tin thì lấy trường tương ứng ở lần thay đổi đặt bàn thứ nhất.
+Nếu khách hàng dùng từ như "hôm nay", "ngày mai", "ngày mốt", "ngày kia", "thứ 7 tuần sau", hãy chuyển về ngày tương ứng (định dạng yyyy-mm-dd) dựa trên ngày hiện tại là "{current_date}".
+
+## Ví dụ:
+1.
+Input:
+- Tin nhắn khách hàng: tôi muốn thay đổi lại là 8h tối ăn
+- Danh sách đơn đặt bàn: 
+[
+    {{
+        'reservation_id': 16,
+        'reservation_date': '16/05/2025',
+        'reservation_time': '18:00',
+        'party_size': 5,
+        'note': "Không có ghi chú"
+    }},
+    {{
+        'reservation_id': 17,
+        'reservation_date': '18/05/2025',
+        'reservation_time': '19:00',
+        'party_size': 3,
+        "note": "Bàn thêm hoa trang trí" 
+    }},
+]
+- Ngày hôm nay: {current_date}
+- Cách xưng hô: {salutation}
+- last_reservation_id_chosen: 16
+- : '16/05/2025'
+- last_time: '18:00'
+- last_people: 5
+- last_note: "Không có ghi chú"
+
+Ouput: 
+{{
+    "reservation_id_chosen": 16,
+    "date": "2025-5-16", 
+    "time": '20:00',  
+    "people": 5,
+    "note": "Không có ghi chú"
+}}
+
+Giải thích:
+- Vì khách chỉ yêu cầu thay đổi giờ ăn thành 8h tối nên trường time sẽ được thay đổi thành "20:00" 
+- Các thông tin khác sẽ được lấy từ thông tin đặt bàn trước đó (lấy trường last_reservation_id_chosen, last_date, last_people, last_note)
+
+2.
+Input:
+- Tin nhắn khách hàng: vậy thay đổi mã đặt bàn 17 đi, cho tôi ăn vào ngày 20
+- Danh sách đơn đặt bàn: 
+[
+    {{
+        'reservation_id': 16,
+        'reservation_date': '16/05/2025',
+        'reservation_time': '18:00',
+        'party_size': 5,
+        'note': "Không có ghi chú"
+    }},
+    {{
+        'reservation_id': 17,
+        'reservation_date': '18/05/2025',
+        'reservation_time': '19:00',
+        'party_size': 3,
+        "note": "Bàn thêm hoa trang trí" 
+    }},
+]
+- Ngày hôm nay: {current_date}
+- Cách xưng hô: {salutation}
+- last_reservation_id_chosen: 16
+- : '16/05/2025'
+- last_time: '18:00'
+- last_people: 5
+- last_note: "Không có ghi chú"
+
+Ouput: 
+{{
+    "reservation_id_chosen": 17,
+    "date": "2025-5-20", 
+    "time": '19:00',  
+    "people": 3,
+    "note": "Bàn thêm hoa trang trí"
+}}
+
+Giải thích:
+- Vì khách yêu cầu thay đổi mã đặt bàn nên mặc dù last_reservation_id_chosen là 16 nhưng khách muốn thay đổi thành 17 nên reservation_id_chosen = 17
+- Và khách muốn thay đổi ăn ngày 18/5 thành 20/5 nên date = 2025-5-20
+- Các thông tin khác sẽ được lấy từ thông tin đặt bàn trước đó (lấy trường last_time, last_people, last_note)
+
+
+Trả lời dưới dạng JSON với các khóa: "reservation_id_chosen", "date", "time", "people", "note".

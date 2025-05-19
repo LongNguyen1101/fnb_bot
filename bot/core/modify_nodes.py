@@ -2,208 +2,323 @@ from langchain_core.messages import HumanMessage, AIMessage
 from langgraph.graph.message import add_messages
 from bot.core.state import BookingState
 from langgraph.types import interrupt
-from datetime import datetime
 import json
-from bot.core.graph_function import (
-    extract_phone_number,
-    check_exist_customer_by_phone_number,
-    get_reservations_of_customer,
-    update_reservation_info,
-    extract_modify_input_user
-)
+from datetime import datetime
+from bot.core.graph_function import GraphFunction
+from bot.chain.booking_chain import BookingChain
+from dotenv import load_dotenv
+import os
 
-def modify_node(state: BookingState) -> BookingState:
-    restaurant_name = state["restaurant_info"].get("name", "chúng tôi")
-    
-    text = (
-        "Quý khách vui lòng hãy cung cấp số điện thoại mà quý khách đã "
-        f"sử dụng để đặt bàn tại nhà hàng {restaurant_name}.\n"
-    )
-    
-    state["messages"] = add_messages(state["messages"], [AIMessage(content=text)])
-    return state
+load_dotenv(override=True)
 
-def get_customer_phone_number_node(state: BookingState) -> BookingState:
-    user_input = interrupt(None)
-    
-    phone_number = extract_phone_number(user_input)
-    if phone_number is None:
-        raise ValueError("Số điện thoại không đúng!!")
-    
-    state["booking_info"]["phone_number"] = phone_number
-    state["user_input"] = user_input
-    state["messages"] = add_messages(state["messages"], [HumanMessage(content=user_input)])
-    
-    return state
+RESTAURANT_NAME = os.getenv("RESTAURANT_NAME")
 
-def notify_wait_for_check_node(state: BookingState) -> BookingState:
-    restaurant_name = state["restaurant_info"].get("name", "chúng tôi")
-    text = (
-        f"Quý khách vui lòng chờ trong giây lát để nhà hàng {restaurant_name} "
-        f"kiểm tra số điện thoại trong hệ thống đặt bàn."
-    )
-    
-    state["messages"] = add_messages(state["messages"], [AIMessage(content=text)])
-    return state
+class ModifyDialogue:
+    def __init__(self):
+        self.restaurant_name = RESTAURANT_NAME
+        self.graph_function = GraphFunction()
+        self.chain = BookingChain()
 
-
-def check_customer_node(state: BookingState) -> BookingState:
-    customer = check_exist_customer_by_phone_number(state)
+    def get_salutation(self, state: BookingState):
+        customer_name = state.get("customer_name", "")
+        check_salutation = state["salutation"]
+        salutation = customer_name if check_salutation is None else f"{check_salutation.capitalize()}"
+        return customer_name, check_salutation, salutation
     
-    if customer is not None:
-        state["booking_info"]["customer_id"] = customer.customer_id
-        state["booking_info"]["full_name"] = customer.name
-        state["booking_info"]["email"] = customer.email or ""
-    else:
-        state["booking_info"]["customer_id"] = None
-        state["booking_info"]["full_name"] = None
-        state["booking_info"]["email"] = None
-    
-    return state
-
-def notify_found_customer_node(state: BookingState) -> BookingState:
-    restaurant_name = state["restaurant_info"].get("name", "chúng tôi")
-    customer_name = state["booking_info"].get("full_name", "")
-    
-    text = (
-        f"Xin cảm ơn quý khách {customer_name} đã chờ đợi, ngay sau đây nhà hàng {restaurant_name} "
-        f"sẽ kiểm tra thông tin đặt bàn của quý khách."
-    )
-    
-    state["messages"] = add_messages(state["messages"], [AIMessage(content=text)])
-    return state
-
-def notify_not_found_customer_node(state: BookingState) -> BookingState:
-    restaurant_name = state["restaurant_info"].get("name", "chúng tôi")
-    text = (
-        f"Xin cảm ơn quý khách đã chờ đợi, tuy nhiên nhà hàng {restaurant_name} "
-        "không tìm ra thông tin của quý khách trong hệ thống của nhà hàng.\n"
-        "Chúng tôi xin lỗi vì sự bất tiện này, quý khách vui lòng cung cấp lại số điện thoại "
-        f"để nhà hàng {restaurant_name} kiểm tra lại số điện thoại của quý khách."
-    )
-    
-    state["messages"] = add_messages(state["messages"], [AIMessage(content=text)])
-    return state
-
-def check_booking_node(state: BookingState) -> BookingState:
-    reservations = get_reservations_of_customer(state)
-    
-    if reservations is not None:
-        state["list_reservations"] = reservations
-        state["exist_reservation"] = True
-    else:
-        state["list_reservations"] = None
-        state["exist_reservation"] = False
-    
-    return state
-
-def return_customer_reservation_modify_node(state: BookingState) -> BookingState:
-    list_reservations = state.get("list_reservations", None)
-    # list_reservations = json.dumps(list_reservations)
-    text = ""
-    for reservation in list_reservations:
-        try:
-            text += (
-                f"Thông tin đặt bàn số: {reservation['reservation_id']}\n"
-                f"Chi nhánh: {reservation['branch_id']}\n"
-                f"Địa chỉ: {reservation['address']}\n"
-                f"Ngày đặt: {reservation['reservation_date']}\n"
-                f"Thời gian đặt: {reservation['reservation_time']}\n"
-                f"Số lượng người: {reservation['party_size']}\n\n"
-            )
-        except KeyError as e:
-            text += f"Lỗi: Thiếu thông tin cho đặt bàn (thiếu key: {e})\n\n"
-
-    if not list_reservations:
-        text += "Không có thông tin đặt bàn nào.\n"
-
-    text += "Quý khách hãy sửa đổi thông tin đặt bàn theo mong muốn của quý khách."
-    
-    state["messages"] = add_messages(state["messages"], [AIMessage(content=text)])
-    return state
-
-def notify_not_found_booking_node(state: BookingState) -> BookingState:
-    restaurant_name = state["restaurant_info"].get("name", "chúng tôi")
-    
-    text = (
-        f"Nhà hàng {restaurant_name} xin lỗi quý khách vì không thể tìm được thông tin đặt bàn của quý khách.\n"
-        "Mong quý khách vui lòng nhập lại đúng số điện thoại mà quý khách dùng để đặt bàn để hệ thống của nhà hàng "
-        "chúng tôi có thể tìm được thông tin đặt bàn của quý khách."
-    )
-    
-    state["messages"] = add_messages(state["messages"], [AIMessage(content=text)])
-    return state
-
-def get_modfify_booking_info_node(state: BookingState) -> BookingState:
-    update_info = interrupt(None)
-    update_info = extract_modify_input_user(update_info)
-    update_info = json.loads(update_info)
-    print("update info", update_info)
-    
-    try:
-        # update_info = json.loads(user_request)
-        # Kiểm tra các trường cần thiết
-        if not all(key in update_info for key in ["branch_id", "address", "reservation_date",
-                                                  "reservation_time", "party_size", "reservation_id_chosen"]):
-            raise ValueError("JSON thiếu các trường cần thiết")
+    def announce_wait_to_get_reservation_node(self, state: BookingState) -> BookingState:
+        customer_name, check_salutation, salutation = self.get_salutation(state)
         
-        parse_reservation_date = datetime.strptime(update_info["reservation_date"], "%d/%m/%Y")
-        
-        # Lưu thông tin đặt bàn vào state
-        state["booking_info"] = {
-            "reservation_id_chosen": int(update_info["reservation_id_chosen"]),
-            "branch_id": int(update_info["branch_id"]),
-            "address": update_info["address"],
-            "reservation_date": parse_reservation_date,
-            "reservation_time": update_info["reservation_time"],
-            "party_size": int(update_info["party_size"]),
-        }
-        
-    except (json.JSONDecodeError, ValueError):
-        raise ValueError("Lỗi khi trích xuất thông tin khách hàng")
+        text = (
+            f"Dạ, xin phép {salutation} vui lòng chờ một chút để nhà hàng kiểm tra lại thông tin đặt bàn giúp {salutation} ạ."
+        )
 
-    user_request = json.dumps(update_info, ensure_ascii=False)
-    state["messages"] = add_messages(state["messages"], [HumanMessage(content=user_request)])
-    state["user_input"] = user_request
-
-    return state
-
-def update_reservation_node(state: BookingState) -> BookingState:
-    updated_reservation = update_reservation_info(state)
-    state["modify_successful"] = False
+        state["messages"] = add_messages(state["messages"], [AIMessage(content=text)])
+        return state
     
-    if updated_reservation is not None:
+    def get_reservation_node(self, state: BookingState) -> BookingState:
+        list_reservation = self.graph_function.get_reservations_of_customer(state)
+        print(f"> Tìm thấy danh sách đặt bàn: {list_reservation}")
+        
+        state["list_reservation"] = list_reservation
+        return state
+    
+    def notify_not_found_reservation_node(self, state: BookingState) -> BookingState:
+        customer_name, check_salutation, salutation = self.get_salutation(state)
+        
+        text = (
+            f"Dạ, hiện tại nhà hàng chưa ghi nhận thông tin đặt bàn nào từ {salutation} ạ. "
+            f"Không biết {salutation} có mong muốn tiến hành đặt bàn ngay bây giờ không ạ?"
+        )
+
+        state["messages"] = add_messages(state["messages"], [AIMessage(content=text)])
+        return state
+    
+    def ask_modify_reservation_node(self, state: BookingState) -> BookingState:
+        customer_name, check_salutation, salutation = self.get_salutation(state)
+        list_reservation = state["list_reservation"]
+        print(list_reservation)
+        
+        question = self.chain.ask_modify_reservation().invoke({
+            "list_reservation": list_reservation,
+            "salutation": salutation
+        })
+        
+        state["modify_question"] = question.content
+        state["messages"] = add_messages(state["messages"], [AIMessage(content=question.content)])
+        return state
+    
+    def get_modify_info_node(self, state: BookingState) -> BookingState:
+        user_input = interrupt(None)
+        
+        customer_name, check_salutation, salutation = self.get_salutation(state)
+        list_reservation = state["list_reservation"]
+        
+        extract_data = self.chain.extract_modify_info().invoke({
+            "current_date": datetime.today().strftime('%Y-%m-%d'),
+            "salutation": salutation,
+            "user_input": user_input,
+            "list_reservation": list_reservation
+        })
+        
+        result = extract_data.content.replace("```json\n", "").replace("\n```", "").replace("\n", "")
+        print(f"> Khách muốn đặt lại với thông tin {result}")
+        json_data = json.loads(result)
+        
+        state["table_id"] = json_data.get("table_id", None)
+        state["reservation_id_chosen"] = json_data.get("reservation_id_chosen", None)
+        state["date"] = json_data.get("date", None)
+        state["time"] = json_data.get("time", None)
+        state["people"] = json_data.get("people", None)
+        state["note"] = json_data.get("note", None)
+        
+        state["user_input"] = user_input
+        state["messages"] = add_messages(state["messages"], [HumanMessage(content=user_input)])
+        return state
+
+    def ask_for_correct_modify_node(self, state: BookingState) -> BookingState:
+        user_input = state["user_input"]
+        inappropriate_information = state["inappropriate_information"]
+        missing_information = []
+        customer_name, check_salutation, salutation = self.get_salutation(state)
+        
+        question = self.chain.ask_correct_booking_info().invoke({
+            "user_input": user_input,
+            "missing_information": missing_information,
+            "inappropriate_information": inappropriate_information,
+            "salutation": salutation
+        })
+        
+        state["messages"] = add_messages(state["messages"], [AIMessage(content=question.content)])
+        return state
+
+        
+    # def get_available_table_modify_node
+    # def announce_no_available_table_modify_node
+    # def confirm_continue_modify_node
+    # ---> Sử dụng lại của bookinh nodes
+    
+    def end_modify_with_thanks(self, state: BookingState) -> BookingState:
+        customer_name, check_salutation, salutation = self.get_salutation(state)
+        
+        text = (
+            f"Dạ vâng, nhà hàng đã ghi nhận giữ nguyên thông tin đặt bàn ban đầu của {salutation} ạ. "
+            f"Cảm ơn {salutation} rất nhiều! "
+            f"Nếu {salutation} cần hỗ trợ thêm bất kỳ điều gì khác, cứ nhắn cho nhà hàng bất cứ lúc nào nhé!"
+        )
+
+        state["messages"] = add_messages(state["messages"], [AIMessage(content=text)])
+        return state
+    
+    def ask_modify_again_info_node(self, state: BookingState) -> BookingState:
+        ustomer_name, check_salutation, salutation = self.get_salutation(state)
+        
+        text = (
+            f"Dạ {salutation}, không biết {salutation} muốn thay đổi thông tin nào khác ạ? "
+            f"Nhà hàng sẽ kiểm tra và phản hồi ngay để hỗ trợ quý khách tốt nhất ạ."
+        )
+        
+        state["messages"] = add_messages(state["messages"], [AIMessage(content=text)])
+        return state
+    
+    def get_modify_again_info_node(self, state: BookingState) -> BookingState:
+        user_input = interrupt(None)
+        
+        customer_name, check_salutation, salutation = self.get_salutation(state)
+        list_reservation = state["list_reservation"]
+        reservation_id_chosen = state["reservation_id_chosen"]
+        date = state["date"]
+        time = state["time"]
+        people = state["people"]
+        note = state["note"]
+        
+        extract_data = self.chain.extract_modify_again_info().invoke({
+            "user_input": user_input,
+            "list_reservation": list_reservation,
+            "current_date": datetime.today().strftime('%Y-%m-%d'),
+            "salutation": salutation,
+            "reservation_id_chosen": reservation_id_chosen,
+            "date": date,
+            "time": time,
+            "people": people,
+            "note": note
+        })
+        
+        result = extract_data.content.replace("```json\n", "").replace("\n```", "").replace("\n", "")
+        print(f"> Khách muốn đặt lại với thông tin {result}")
+        json_data = json.loads(result)
+        
+        state["reservation_id_chosen"] = json_data.get("reservation_id_chosen", None)
+        state["date"] = json_data.get("date", None)
+        state["time"] = json_data.get("time", None)
+        state["people"] = json_data.get("people", None)
+        state["note"] = json_data.get("note", None)
+        
+        state["user_input"] = user_input
+        state["messages"] = add_messages(state["messages"], [HumanMessage(content=user_input)])
+        return state
+
+    def extract_modify_info_node(self, state: BookingState) -> BookingState:
+        user_input = state["user_input"]
+        customer_name, check_salutation, salutation = self.get_salutation(state)
+        list_reservation = state["list_reservation"]
+        reservation_id_chosen = state["reservation_id_chosen"]
+        date = state["date"]
+        time = state["time"]
+        people = state["people"]
+        note = state["note"]
+        
+        extract_data = self.chain.extract_modify_again_info().invoke({
+            "user_input": user_input,
+            "list_reservation": list_reservation,
+            "current_date": datetime.today().strftime('%Y-%m-%d'),
+            "salutation": salutation,
+            "reservation_id_chosen": reservation_id_chosen,
+            "date": date,
+            "time": time,
+            "people": people,
+            "note": note
+        })
+        
+        result = extract_data.content.replace("```json\n", "").replace("\n```", "").replace("\n", "")
+        print(f"> Khách muốn đặt lại với thông tin {result}")
+        json_data = json.loads(result)
+        
+        state["reservation_id_chosen"] = json_data.get("reservation_id_chosen", None)
+        state["date"] = json_data.get("date", None)
+        state["time"] = json_data.get("time", None)
+        state["people"] = json_data.get("people", None)
+        state["note"] = json_data.get("note", None)
+        
+        state["user_input"] = user_input
+        state["messages"] = add_messages(state["messages"], [HumanMessage(content=user_input)])
+        return state
+
+    def confirm_modify_node(self, state: BookingState) -> BookingState:
+        reservation_date = datetime.strptime(state["date"], "%Y-%m-%d").strftime("%d-%m-%Y")
+        time = state["time"]
+        people = state["people"]
+        note = state["note"] if state["note"] != "" else "Không có ghi chú"
+        reservation_id_chosen = state["reservation_id_chosen"]
+        customer_name, check_salutation, salutation = self.get_salutation(state)
+        
+        text = (
+            f"Dạ {salutation}, nhà hàng xin phép được xác nhận lại thông tin đặt bàn sau khi thay đổi của {salutation} như sau:\n"
+            f"- Mã đặt bàn: {reservation_id_chosen}\n"
+            f"- Thời gian: {time}, ngày {reservation_date}\n"
+            f"- Số lượng khách: {people} người\n"
+            f"- Ghi chú: {note}\n"
+            f"{salutation} vui lòng kiểm tra giúp nhà hàng xem thông tin trên đã chính xác chưa ạ?"
+        )
+        
+        state["messages"] = add_messages(state["messages"], [AIMessage(content=text)])
+        return state
+    
+    def get_confirm_modify_node(self, state: BookingState) -> BookingState:
+        user_input = interrupt(None)
+        state["user_input"] = user_input
+        state["messages"] = add_messages(state["messages"], [HumanMessage(content=user_input)])
+        return state
+    
+    def ask_edit_modify_node(self, state: BookingState) -> BookingState:
+        customer_name, check_salutation, salutation = self.get_salutation(state)
+        
+        text = (
+            f"Dạ {salutation}, không biết {salutation} cần điều chỉnh thông tin nào trong đơn đặt bàn ạ? "
+            f"Nhà hàng sẽ kiểm tra và phản hồi sớm nhất để hỗ trợ quý khách chu đáo nhất ạ."
+        )
+
+        state["messages"] = add_messages(state["messages"], [AIMessage(content=text)])
+        return state
+    
+    def end_modify_node(self, state: BookingState) -> BookingState:
+        customer_name, check_salutation, salutation = self.get_salutation(state)
+        now = datetime.now()
+
+        # Xác định thời gian chào theo giờ hiện tại
+        greeting_time = "một ngày" if 5 <= now.hour < 18 else "một đêm"
+
+        text = (
+            f"Dạ vâng, nhà hàng đã ghi nhận mong muốn giữ nguyên thông tin đặt bàn ban đầu của {salutation} ạ. "
+            f"Cảm ơn {salutation} đã dành thời gian! "
+            f"{salutation} cần điều chỉnh gì thêm trong thời gian tới, nhà hàng luôn sẵn sàng hỗ trợ ạ. "
+            f"Kính chúc {salutation} {greeting_time} thật nhiều niềm vui và sức khỏe!"
+        )
+        
+        state["state"] = "END"
+        customer = self.graph_function.add_state(state["customer_id"], state["state"])
+        if customer:
+            print("> Thêm state END thành công")
+        else:
+            print("> Thêm state END không thành công")
+
+        state["messages"] = add_messages(state["messages"], [AIMessage(content=text)])
+        return state
+    
+    def update_reservation_node(self, state: BookingState) -> BookingState:
+        updated_reservation = self.graph_function.update_reservation_info(state)
         state["modify_successful"] = True
+        
+        if not updated_reservation:
+            state["modify_successful"] = False
+        
+        return state
     
-    return state
-
-def notify_update_reservation_successful_node(state: BookingState) -> BookingState:
-    restaurant_name = state["restaurant_info"].get("name", "chúng tôi")
-    customer_name = state["booking_info"].get("full_name", "")
-    reservation_date = state["booking_info"].get("reservation_date", "ngày đã đặt")
-    reservation_time = state["booking_info"].get("reservation_time", "thời gian đã đặt")
+    def thank_you_modify_node(self, state: BookingState) -> BookingState:
+        customer_name, check_salutation, salutation = self.get_salutation(state)
+        reservation_date = datetime.strptime(state["date"], "%Y-%m-%d").strftime("%d-%m-%Y")
+        time = state["time"]
+        
+        text = (
+            f"Dạ, nhà hàng đã thay đổi thông tin đặt bàn thành công và xin hẹn gặp lại {salutation} vào lúc {time} ngày {reservation_date} ạ. "
+            f"Rất mong được đón tiếp và phục vụ {salutation} một cách chu đáo nhất. "
+            f"Nếu có thay đổi nào về thời gian hoặc số lượng khách, {salutation} vui lòng báo lại giúp nhà hàng nhé!"
+        )
+        
+        state["state"] = "END"
+        customer = self.graph_function.add_state(state["customer_id"], state["state"])
+        if customer:
+            print("> Thêm state END thành công")
+        else:
+            print("> Thêm state END không thành công")
+        
+        state["messages"] = add_messages(state["messages"], [AIMessage(content=text)])
+        return state
     
-    
-    text = (
-        f"Xin thông báo quý khách {customer_name} đã cập nhật đặt bàn thành công.\n"
-        f"Nhà hàng {restaurant_name} rất mong chờ được phục vụ quý khách vào lúc "
-        f"{reservation_time}, ngày {reservation_date}."
-    )
-    
-    state["messages"] = add_messages(state["messages"], [AIMessage(content=text)])
-
-    return state
-
-def apologize_update_reservation_node(state: BookingState) -> BookingState:
-    restaurant_name = state["restaurant_info"].get("name", "chúng tôi")
-    customer_name = state["booking_info"].get("full_name", "")
-    
-    text = (
-        f"Nhà hàng {restaurant_name} chân thành xin lỗi quý khách {customer_name} vì không thể tìm được "
-        "thông tin đặt bàn của quý khách.\n"
-        "Xin quý khách vui lòng chỉnh lại thông tin cập nhật đặt bàn một lần nữa.\n"
-    )
-    
-    state["messages"] = add_messages(state["messages"], [AIMessage(content=text)])
-
-    return state
+    def not_modify_successful_node(self, state: BookingState) -> BookingState:
+        customer_name, check_salutation, salutation = self.get_salutation(state)
+        
+        text = (
+            f"Dạ, rất xin lỗi {salutation}, hiện tại hệ thống đang gặp sự cố nên chưa thay đổi thông tin đặt bàn của {salutation}. "
+            f"{salutation} vui lòng thử lại sau ít phút hoặc liên hệ trực tiếp với nhà hàng để được hỗ trợ nhanh chóng hơn ạ. "
+            f"Rất mong {salutation} thông cảm cho sự bất tiện này!"
+        )
+        
+        state["state"] = "END"
+        customer = self.graph_function.add_state(state["customer_id"], state["state"])
+        if customer:
+            print("> Thêm state END thành công")
+        else:
+            print("> Thêm state END không thành công")
+        
+        state["messages"] = add_messages(state["messages"], [AIMessage(content=text)])
+        return state

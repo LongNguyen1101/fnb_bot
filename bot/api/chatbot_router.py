@@ -12,10 +12,16 @@ from langgraph.types import Command
 chatbot_router = APIRouter()
 graph = build_graph()
 
-class UserInput(BaseModel):
+class UserInitInput(BaseModel):
     thread_id: Optional[str] = None  # ID phiên người dùng
     message: Any  # Tin nhắn hoặc input từ người dùng
-    additional_data: Optional[Dict[str, Any]] = None  # Dữ liệu bổ sung (ví dụ: số điện thoại, thông tin đặt bàn)
+    customer_psid: Optional[str]
+    customer_name: Optional[str]
+    intent: Optional[str]
+    
+class UserContinueInput(BaseModel):
+    thread_id: Optional[str] = None  # ID phiên người dùng
+    message: Any  # Tin nhắn hoặc input từ người dùng
 
 async def stream_messages(events: Any, thread_id: str):
     config = {"configurable": {"thread_id": thread_id}}
@@ -45,9 +51,15 @@ async def stream_messages(events: Any, thread_id: str):
         
         
 @chatbot_router.post("/get_introduce", summary="Get introduce in chatbot with streaming")
-async def get_introduce(user_input: UserInput):
+async def get_introduce(user_input: UserInitInput):
     try:
         state = init_state()
+        state["customer_psid"] = user_input.customer_psid
+        state["customer_name"] = user_input.customer_name
+        state["intent"] = user_input.intent
+        state["user_input"] = user_input.message
+        print(f">>> Kiểm tra khách nhắn trong API: {state["user_input"]}")
+        
         thread_id = user_input.thread_id or str(uuid.uuid4())
         config = {"configurable": {"thread_id": thread_id}}
 
@@ -61,7 +73,7 @@ async def get_introduce(user_input: UserInput):
         raise HTTPException(status_code=500, detail=str(e))
 
 @chatbot_router.post("/interact", summary="Interact with chatbot with streaming")
-async def interact(user_input: UserInput):
+async def interact(user_input: UserContinueInput):
     try:
         thread_id = user_input.thread_id
         if not thread_id:

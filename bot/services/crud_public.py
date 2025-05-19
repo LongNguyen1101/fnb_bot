@@ -4,7 +4,8 @@ from bot.schema.models import (Restaurant, RestaurantBranch, ServiceType, Table,
                              Reservation, ReservationLog, Customer, ReservationHistory, 
                              Payment, WaitingList, NoShowLog, PolicyType, Policy, PolicyDetail)
 from typing import Optional, Dict, Any, List
-from sqlalchemy import desc, asc
+from sqlalchemy import desc, asc, select
+from datetime import datetime, timedelta, time as dt_time
 
 # CRUD cho schema public
 class PublicCRUD:
@@ -132,6 +133,15 @@ class PublicCRUD:
         self.db.commit()
         self.db.refresh(table)
         return table
+    
+    def get_capacity_by_reservation_id(self, reservation_id: int) -> int:
+        result = (
+            self.db.query(Table.capacity)
+            .join(Reservation, Table.table_id == Reservation.table_id)
+            .filter(Reservation.reservation_id == reservation_id)
+            .first()
+        )
+        return result if result else None
 
     def get_table(self, table_id: int) -> Optional[Table]:
         return self.db.query(Table).filter(Table.table_id == table_id).first()
@@ -209,7 +219,7 @@ class PublicCRUD:
     # Reservation CRUD
     def create_reservation(self, table_id: int, customer_id: int, branch_id: int, policy_id: int,
                          reservation_date: str, reservation_time: str, party_size: int, 
-                         status: str = "pending") -> Reservation:
+                         status: str = "pending", note: str = "") -> Reservation:
         reservation = Reservation(
             table_id=table_id,
             customer_id=customer_id,
@@ -218,13 +228,46 @@ class PublicCRUD:
             reservation_date=reservation_date, 
             reservation_time=reservation_time,
             party_size=party_size, 
-            status=status
+            status=status,
+            note=note
         )
         self.db.add(reservation)
         self.db.commit()
         self.db.refresh(reservation)
         return reservation
 
+    def get_available_table(self, date: str, time: str, people: int) -> Optional[Table]:
+        reservation_date = datetime.strptime(date, "%Y-%m-%d").date()
+        reservation_time = datetime.strptime(time, "%H:%M").time()
+        min_capacity = people
+        max_capacity = people + 3 # Chỉ cho phép bàn dư 3 chỗ ngồi
+        
+        dt_full = datetime.combine(reservation_date, reservation_time)
+        time_before = (dt_full - timedelta(hours=1)).time()
+        time_after = (dt_full + timedelta(hours=1)).time()
+        
+        subquery_reserved_table_ids = (
+            select(Reservation.table_id)
+            .where(
+                Reservation.reservation_date == reservation_date,
+                Reservation.reservation_time.between(time_before, time_after),
+                Reservation.status.in_(["pending", "confirmed"])
+            )
+        )
+
+        available_tables = (
+            self.db.query(Table)
+            .filter(
+                Table.capacity.between(min_capacity, max_capacity),
+                ~Table.table_id.in_(subquery_reserved_table_ids)
+            )
+            .order_by(Table.capacity.asc())
+            .first()
+        )
+
+        return available_tables
+        
+    
     def get_reservation(self, reservation_id: int) -> Optional[Reservation]:
         return self.db.query(Reservation).filter(Reservation.reservation_id == reservation_id).first()
     
@@ -306,11 +349,11 @@ class PublicCRUD:
         return False
     
     # Customer CRUD
-    def create_customer(self, name: str, phone_number: str, email: str) -> Customer:
+    def create_customer(self, name: str, phone_number: str, psid: str) -> Customer:
         customer = Customer(
             name=name,
             phone_number=phone_number,
-            email=email
+            psid=psid
         )
         self.db.add(customer)
         self.db.commit()
@@ -320,11 +363,23 @@ class PublicCRUD:
     def get_customer(self, customer_id: int) -> Optional[Customer]:
         return self.db.query(Customer).filter(Customer.customer_id == customer_id).first()
     
+    def get_customer_by_psid(self, psid: str) -> Optional[Customer]:
+        return self.db.query(Customer).filter(Customer.psid == psid).first()
+    
     def get_customer_by_phone_number(self, phone_number: str) -> Optional[Customer]:
         return self.db.query(Customer).filter(Customer.phone_number == phone_number).first()
 
     def update_customer(self, customer_id: int, data: Dict[str, Any]) -> Optional[Customer]:
         customer = self.get_customer(customer_id)
+        if customer:
+            for key, value in data.items():
+                setattr(customer, key, value)
+            self.db.commit()
+            self.db.refresh(customer)
+        return customer
+    
+    def update_customer_by_psid(self, psid: str, data: Dict[str, Any]) -> Optional[Customer]:
+        customer = self.get_customer_by_psid(psid=psid)
         if customer:
             for key, value in data.items():
                 setattr(customer, key, value)

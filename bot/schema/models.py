@@ -130,6 +130,7 @@ class Reservation(Base):
     created_at = Column(DateTime, default=func.current_timestamp())
     confirmed_at = Column(DateTime)
     reminder_sent = Column(Boolean, default=False)
+    note = Column(String, nullable=True)
     
     table = relationship("Table", back_populates="reservations")
     customer = relationship("Customer", back_populates="reservations")
@@ -167,8 +168,9 @@ class Customer(Base):
     
     customer_id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
-    phone_number = Column(String(20), unique=True, nullable=False)
-    email = Column(String(255), unique=True, nullable=True)
+    phone_number = Column(String(20), unique=True, nullable=True)
+    salutation = Column(String(20), nullable=True)
+    psid = Column(String(255), unique=True, nullable=True)
     is_vip = Column(Boolean, default=False)
     created_at = Column(DateTime, default=func.current_timestamp())
     
