@@ -44,8 +44,10 @@ jsonschema==4.23.0
 jsonschema-specifications==2024.10.1
 jupyter_client==8.6.3
 jupyter_core==5.7.2
-langchain-core==0.3.49
+langchain==0.3.25
+langchain-core==0.3.59
 langchain-google-genai==2.1.2
+langchain-text-splitters==0.3.8
 langgraph==0.3.22
 langgraph-checkpoint==2.0.23
 langgraph-prebuilt==0.1.7
